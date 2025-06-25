@@ -1,22 +1,29 @@
 import streamlit as st
 from datetime import datetime
-from auth import check_password, show_logout_button
+from auth import check_password
 
 # Page configuration
 st.set_page_config(
     page_title="Crypto Analytics Admin",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # Check authentication
 if check_password():
-    # Show logout button in sidebar
-    show_logout_button()
+    # Header with title and logout
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        st.title("🚀 Crypto Analytics Admin Panel")
+    with col2:
+        st.markdown("")  # Empty line for alignment
+        if st.button("🚪 Logout", help="Click to logout"):
+            from auth import cookie_controller
+            st.session_state["password_correct"] = False
+            cookie_controller.remove("auth_token")
+            st.rerun()
     
-    # Main page
-    st.title("🚀 Crypto Analytics Admin Panel")
     st.markdown("---")
 
     # Welcome message
@@ -32,11 +39,17 @@ if check_password():
         st.info("**[*]** Version: 0.1.0")
 
     st.markdown("## Navigation")
-    st.markdown("""
-    Use the sidebar to navigate between pages:
-    - **🔑 API Keys** - Monitor API usage and costs
-    - **⚙️ Processing** - Database statistics and processing status
-    """)
+    
+    # Navigation buttons
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🔑 API Keys Monitor", use_container_width=True, help="Monitor API usage and costs"):
+            st.switch_page("pages/2_🔑_API_Keys.py")
+    
+    with col2:
+        if st.button("⚙️ Processing Stats", use_container_width=True, help="Database statistics and processing status"):
+            st.switch_page("pages/3_⚙️_Processing.py")
 
     # Placeholder for connection status
     st.markdown("## Quick Stats")

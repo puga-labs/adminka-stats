@@ -5,16 +5,13 @@ from utils.api_monitors import get_cached_balances, calculate_api_stats, ping_al
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from auth import check_password, show_logout_button
+from auth import check_password
 
 st.set_page_config(page_title="API Keys Monitor", page_icon="🔑", layout="wide")
 
 # Check authentication
 if not check_password():
     st.stop()
-
-# Show logout button
-show_logout_button()
 
 def recreate_ping_display(ping_status: str, ping_time: float) -> str:
     """Recreate ping display based on status and time"""
@@ -36,8 +33,24 @@ def recreate_ping_display(ping_status: str, ping_time: float) -> str:
     else:
         return "🔴 Failed"
 
-st.title("🔑 API Monitor")
-st.markdown("Track DeepSeek balances and Gemini status")
+# Header with navigation
+col1, col2, col3 = st.columns([1, 4, 1])
+
+with col1:
+    if st.button("🏠 Home", use_container_width=True, help="Return to main page"):
+        st.switch_page("app.py")
+
+with col2:
+    st.title("🔑 API Monitor")
+    st.markdown("Track DeepSeek balances and Gemini status")
+
+with col3:
+    if st.button("🚪 Logout", use_container_width=True, help="Click to logout"):
+        from auth import cookie_controller
+        st.session_state["password_correct"] = False
+        cookie_controller.remove("auth_token")
+        st.rerun()
+
 st.markdown("---")
 
 # Control buttons

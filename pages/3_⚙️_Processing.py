@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional, Dict
 from datetime import datetime
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from auth import check_password, show_logout_button
+from auth import check_password
 
 # Load environment variables
 load_dotenv()
@@ -17,17 +17,26 @@ st.set_page_config(page_title="Processing", page_icon="⚙️", layout="wide")
 if not check_password():
     st.stop()
 
-# Show logout button
-show_logout_button()
+# Header with navigation and refresh
+col1, col2, col3, col4 = st.columns([1, 3, 1, 1])
 
-# Header with refresh button
-col1, col2 = st.columns([4, 1])
 with col1:
+    if st.button("🏠 Home", use_container_width=True, help="Return to main page"):
+        st.switch_page("app.py")
+
+with col2:
     st.title("⚙️ Processing")
     st.markdown("Processing statistics for social media platforms")
-with col2:
-    st.markdown("") # Empty line for alignment
-    if st.button("🔄 Refresh", help="Reload data from databases"):
+
+with col3:
+    if st.button("🔄 Refresh", use_container_width=True, help="Reload data from databases"):
+        st.rerun()
+
+with col4:
+    if st.button("🚪 Logout", use_container_width=True, help="Click to logout"):
+        from auth import cookie_controller
+        st.session_state["password_correct"] = False
+        cookie_controller.remove("auth_token")
         st.rerun()
 
 # Show last update time

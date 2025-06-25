@@ -3492,6 +3492,24 @@ files = [
 streamlit = ">=0.63"
 
 [[package]]
+name = "streamlit-cookies-controller"
+version = "0.0.4"
+description = "Streamlit cookies controller"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "streamlit-cookies-controller-0.0.4.tar.gz", hash = "sha256:f5df2543de858f1585dcb6e90f58f38aafbf313ee8e237c64663b2d9761583cc"},
+    {file = "streamlit_cookies_controller-0.0.4-py3-none-any.whl", hash = "sha256:f97fec6acdeee9cb9e16da25c3fc91d404b5b0ddced87c1d9fa9c62f65ca3251"},
+]
+
+[package.dependencies]
+streamlit = ">=0.63"
+
+[package.extras]
+devel = ["playwright (==1.39.0)", "pytest (==7.4.0)", "pytest-playwright-snapshot (==1.0)", "pytest-rerunfailures (==12.0)", "requests (==2.31.0)", "wheel"]
+
+[[package]]
 name = "streamlit-embedcode"
 version = "0.1.2"
 description = "Streamlit component for embedded code snippets"
@@ -4072,4 +4090,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "2968eafe98c99c2da995b4a931d79a3ba5c1c31cc277fb6d15cd92543bcd9b9d"
+content-hash = "83c6d105f3a981be7f304ec156f187da59723fce17b147e37ee15f519eebc8c6"
