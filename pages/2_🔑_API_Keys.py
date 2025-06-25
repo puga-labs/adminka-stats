@@ -1,64 +1,199 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from utils.api_monitors import get_cached_balances, get_status_color, calculate_deepseek_stats
+from utils.api_monitors import get_cached_balances, calculate_api_stats, ping_all_apis
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from auth import check_password, show_logout_button
 
 st.set_page_config(page_title="API Keys Monitor", page_icon="🔑", layout="wide")
 
-st.title("🔑 DeepSeek API Monitor")
-st.markdown("Track DeepSeek API balances and usage")
+# Check authentication
+if not check_password():
+    st.stop()
+
+# Show logout button
+show_logout_button()
+
+def recreate_ping_display(ping_status: str, ping_time: float) -> str:
+    """Recreate ping display based on status and time"""
+    if ping_status == "not_tested":
+        return "⚪ Not tested"
+    elif ping_status == "success":
+        if ping_time < 3:
+            return f"🟢 {ping_time}s"
+        else:
+            return f"🟡 {ping_time}s (slow)"
+    elif ping_status == "timeout":
+        return "🔴 Timeout"
+    elif ping_status == "quota_exceeded":
+        return "🟡 Quota exceeded"
+    elif ping_status == "invalid_key":
+        return "🔴 Invalid key"
+    elif ping_status == "not_configured":
+        return "⚫ Not configured"
+    else:
+        return "🔴 Failed"
+
+st.title("🔑 API Monitor")
+st.markdown("Track DeepSeek balances and Gemini status")
 st.markdown("---")
 
-# Refresh button
-col1, col2 = st.columns([6, 1])
+# Control buttons
+col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
 with col2:
-    if st.button("🔄 Refresh", use_container_width=True):
+    if st.button("🔄 Refresh All", use_container_width=True):
         st.cache_data.clear()
+        # Clear ping results on full refresh
+        if 'ping_results' in st.session_state:
+            del st.session_state['ping_results']
+        if 'ping_timestamp' in st.session_state:
+            del st.session_state['ping_timestamp']
         st.rerun()
 
+with col3:
+    test_ping = st.button("🏓 Test Ping", use_container_width=True)
+
+with col4:
+    if st.button("🗑️ Clear Ping", use_container_width=True):
+        if 'ping_results' in st.session_state:
+            del st.session_state['ping_results']
+        if 'ping_timestamp' in st.session_state:
+            del st.session_state['ping_timestamp']
+        st.rerun()
+
+# Handle ping test separately
+if test_ping:
+    st.markdown("## 🏓 Ping Test Results")
+    
+    with st.spinner(f"🚀 Testing APIs in parallel..."):
+        start_time = datetime.now()
+        ping_results = ping_all_apis()
+        end_time = datetime.now()
+        total_time = (end_time - start_time).total_seconds()
+        
+        # Store ping results in session state to persist them
+        st.session_state['ping_results'] = ping_results
+        st.session_state['ping_timestamp'] = datetime.now()
+        
+        # Count actual tests performed
+        actual_count = len([r for r in ping_results if r.get('ping_status') != 'not_configured'])
+        
+        st.success(f"✅ All {actual_count} ping tests completed in {total_time:.2f} seconds (parallel execution)")
+        
+        # Display ping results in a nice format
+        for result in ping_results:
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 3])
+            
+            with col1:
+                st.write(f"**{result['service']}**")
+            
+            with col2:
+                ping_status = result.get('ping_status', 'unknown')
+                if ping_status == 'success':
+                    st.success("✅ Success")
+                elif ping_status == 'timeout':
+                    st.error("🔴 Timeout")
+                elif ping_status == 'quota_exceeded':
+                    st.warning("🟡 Quota exceeded")
+                else:
+                    st.error(f"❌ {ping_status}")
+            
+            with col3:
+                ping_time = result.get('ping_time', 0)
+                if ping_time > 0:
+                    st.metric("Response time", f"{ping_time}s")
+                else:
+                    st.write("-")
+            
+            with col4:
+                ping_response = result.get('ping_response', '')
+                if ping_response:
+                    st.code(ping_response[:50] + "..." if len(ping_response) > 50 else ping_response)
+                elif result.get('ping_error'):
+                    st.error(result['ping_error'][:50] + "..." if len(result['ping_error']) > 50 else result['ping_error'])
+                else:
+                    st.write("-")
+        
+        st.divider()
+
 # Show loading state
-with st.spinner("Checking DeepSeek API balances..."):
+with st.spinner("Checking API balances..."):
     try:
         # Get API balance data
         api_results = get_cached_balances()
         
+        # Merge with stored ping results if available
+        if 'ping_results' in st.session_state:
+            ping_results = st.session_state['ping_results']
+            
+            # Validate that ping results match current API keys
+            current_services = {r.get('Service', '') for r in api_results}
+            ping_services = {pr['service'] for pr in ping_results}
+            
+            # If services don't match, clear outdated ping results
+            if current_services != ping_services:
+                del st.session_state['ping_results']
+                if 'ping_timestamp' in st.session_state:
+                    del st.session_state['ping_timestamp']
+            else:
+                # Create a dictionary for O(1) lookup
+                ping_dict = {pr['service']: pr for pr in ping_results}
+                
+                # Update api_results with ping data
+                for api_result in api_results:
+                    service_name = api_result.get('Service', '')
+                    if service_name in ping_dict:
+                        ping_result = ping_dict[service_name]
+                        # Update internal fields - display formatting is already done in _format_result
+                        api_result['_ping_status'] = ping_result.get('ping_status', 'not_tested')
+                        api_result['_ping_time'] = ping_result.get('ping_time', 0)
+                        api_result['_ping_response'] = ping_result.get('ping_response', '')
+                        # Re-format the Ping Test field with updated data
+                        api_result['Ping Test'] = recreate_ping_display(
+                            ping_result.get('ping_status', 'not_tested'),
+                            ping_result.get('ping_time', 0)
+                        )
+        
         # Calculate statistics
-        stats = calculate_deepseek_stats(api_results)
+        stats = calculate_api_stats(api_results)
         
         # Key metrics
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             st.metric(
-                label="Total Balance",
-                value=f"${stats['total_balance']:.2f}",
+                label="DeepSeek Balance",
+                value=f"${stats['deepseek']['total_balance']:.2f}",
                 help="Sum of all DeepSeek balances"
             )
         
         with col2:
             st.metric(
-                label="Average Balance",
-                value=f"${stats['average_balance']:.2f}",
-                help="Average balance per active key"
+                label="DeepSeek Keys",
+                value=f"{stats['deepseek']['active_keys']}/{stats['deepseek']['total_keys']}",
+                help="Active DeepSeek keys"
             )
         
         with col3:
+            gemini_active = stats['gemini']['active']
+            gemini_status_text = "Active" if gemini_active else "Inactive"
             st.metric(
-                label="Lowest Balance",
-                value=f"${stats['lowest_balance']:.2f}",
-                delta=f"-${stats['average_balance'] - stats['lowest_balance']:.2f}" if stats['lowest_balance'] > 0 else None,
-                help="Lowest balance among active keys"
+                label="Gemini Status", 
+                value=gemini_status_text,
+                help="Google Gemini API key status"
             )
         
         with col4:
             st.metric(
-                label="Active Keys",
-                value=f"{stats['active_keys']}/{stats['total_keys']}",
-                help="Active keys out of total"
+                label="Total APIs",
+                value=f"{stats['overall']['active_apis']}/{stats['overall']['total_apis']}",
+                help="Active APIs out of total configured"
             )
         
         # API Status Table
-        st.markdown("## DeepSeek API Keys Status")
+        st.markdown("## API Services Status")
         
         # Convert results to DataFrame
         df_apis = pd.DataFrame(api_results)
@@ -67,18 +202,7 @@ with st.spinner("Checking DeepSeek API balances..."):
         display_columns = [col for col in df_apis.columns if not col.startswith('_')]
         df_display = df_apis[display_columns].copy()
         
-        # Add status indicator
-        def format_status(status):
-            colors = {
-                "active": "🟢",
-                "insufficient": "🟡",
-                "error": "🔴",
-                "not_configured": "⚫",
-                "unknown": "⚫"
-            }
-            return f"{colors.get(status, '⚫')} {status.title()}"
-        
-        df_display['Status'] = df_display['Status'].apply(format_status)
+        # Status is already formatted in _format_result, no need to reformat
         
         # Display table with custom styling
         st.dataframe(
@@ -86,105 +210,33 @@ with st.spinner("Checking DeepSeek API balances..."):
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Service": st.column_config.TextColumn("API Key", width="medium"),
+                "Service": st.column_config.TextColumn("Service", width="medium"),
+                "Type": st.column_config.TextColumn("Type", width="small"),
                 "Status": st.column_config.TextColumn("Status", width="small"),
-                "Total Balance": st.column_config.TextColumn("Total Balance", width="small"),
+                "Total Balance": st.column_config.TextColumn("Balance", width="small"),
                 "Granted": st.column_config.TextColumn("Granted", width="small"),
                 "Topped Up": st.column_config.TextColumn("Topped Up", width="small"),
-                "Last Check": st.column_config.TextColumn("Last Check", width="small"),
+                "Ping Test": st.column_config.TextColumn("Ping Test", width="small"),
                 "Error": st.column_config.TextColumn("Error", width="medium")
             }
         )
         
-        # Detailed view with progress bars
-        st.markdown("## Balance Details")
-        
-        # Create columns for each key
-        cols = st.columns(3)
-        
-        for i, result in enumerate(api_results):
-            with cols[i % 3]:
-                with st.container():
-                    st.subheader(result["Service"])
-                    
-                    if result["Status"] == "active":
-                        # Get balance value for progress calculation
-                        balance_value = result.get("_balance_value", 0)
-                        
-                        # Progress bar (assuming $100 is full)
-                        progress = min(balance_value / 100, 1.0)
-                        
-                        # Color based on balance
-                        if balance_value < 10:
-                            st.error(f"Low Balance: {result['Total Balance']}")
-                        elif balance_value < 25:
-                            st.warning(f"Balance: {result['Total Balance']}")
-                        else:
-                            st.success(f"Balance: {result['Total Balance']}")
-                        
-                        # Progress bar
-                        st.progress(progress, text=f"{int(progress * 100)}% of $100")
-                        
-                        # Additional details
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.caption(f"Granted: {result['Granted']}")
-                        with col2:
-                            st.caption(f"Topped Up: {result['Topped Up']}")
-                            
-                    elif result["Status"] == "not_configured":
-                        st.info("Not configured")
-                        st.caption("Add key to .env file")
-                    else:
-                        st.error(f"Error: {result.get('Error', 'Unknown error')}")
-                    
-                    st.divider()
-        
-        # Usage tips
-        st.markdown("## Balance Management Tips")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.info("""
-            **Low Balance Warning**
-            - Keys with < $10 are considered low
-            - Top up before balance reaches $0
-            - Monitor usage patterns regularly
-            """)
-            
-        with col2:
-            st.info("""
-            **Balance Types**
-            - **Granted**: Free credits from DeepSeek
-            - **Topped Up**: Credits you purchased
-            - **Total**: Sum of both types
-            """)
-        
-        # Last update time
-        st.markdown("---")
-        st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Cache refreshes every 5 minutes")
+        # Gemini details only (simplified)
+        gemini_results = [r for r in api_results if r.get("_api_type") == "gemini"]
+        if gemini_results and gemini_results[0].get("Status") != "not_configured":
+            with st.expander("ℹ️ Google Gemini Notes", expanded=False):
+                gemini = gemini_results[0]
+                st.info("""
+                **Limited Monitoring** - Google Gemini doesn't provide APIs for:
+                - Account balance
+                - Usage quotas  
+                - Cost tracking
+                
+                We can only validate API key status and run ping tests.
+                """)
+                if gemini.get("_dashboard_url"):
+                    st.markdown(f"For detailed monitoring use: [Google Cloud Console]({gemini['_dashboard_url']})")
         
     except Exception as e:
         st.error(f"**[ERROR]** Failed to check API balances: {str(e)}")
-        st.info("Make sure you have configured your DeepSeek API keys in the .env file")
-
-# Configuration helper
-with st.expander("How to configure DeepSeek monitoring"):
-    st.markdown("""
-    1. Copy `.env.example` to `.env`
-    2. Add your DeepSeek API keys:
-       ```
-       DEEPSEEK_API_KEY_1=sk-xxxxxxxxxxxx
-       DEEPSEEK_API_KEY_2=sk-xxxxxxxxxxxx
-       DEEPSEEK_API_KEY_3=sk-xxxxxxxxxxxx
-       ```
-    3. Run `poetry install` to install dependencies
-    4. Restart the application
-    
-    **Getting DeepSeek API Keys:**
-    1. Visit [DeepSeek Platform](https://platform.deepseek.com/)
-    2. Create an account or login
-    3. Generate API keys in the dashboard
-    4. DeepSeek provides free credits for new accounts
-    """)
+        st.info("Make sure you have configured your API keys in the .env file")

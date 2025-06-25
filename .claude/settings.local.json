@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__postgres-telegram__query",
+      "mcp__postgres-youtube__query",
+      "mcp__postgres-twitter__query"
+    ],
+    "deny": []
+  }
+}
