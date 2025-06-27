@@ -46,6 +46,7 @@ python -m database.connection
 1. Check existing utility modules in `utils/` before creating new ones
 2. Use Streamlit's caching decorators (`@st.cache_data`) for expensive queries
 3. Follow the existing page naming convention: `{number}_{emoji}_{Name}.py`
+4. **IMPORTANT**: When using new libraries, ALWAYS add them to `requirements.txt` immediately
 
 ### API Monitoring Priority
 The API monitoring page is CRITICAL - ensure accurate cost tracking:

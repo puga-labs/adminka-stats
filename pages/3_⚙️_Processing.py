@@ -61,7 +61,15 @@ def get_youtube_data() -> Dict:
         """)
         channels = [row[0] for row in cur.fetchall()]
         
-        # Get processed dates
+        # Get total processing days count
+        cur.execute("""
+            SELECT COUNT(*) as total_days
+            FROM videos 
+            WHERE date IS NOT NULL
+        """)
+        total_days = cur.fetchone()[0]
+        
+        # Get processed dates for display
         cur.execute("""
             SELECT DISTINCT DATE(date) as process_date
             FROM videos 
@@ -86,6 +94,7 @@ def get_youtube_data() -> Dict:
         return {
             "channels": channels,
             "dates": dates,
+            "total_days": total_days,
             "channel_stats": channel_stats,
             "error": None
         }
@@ -93,6 +102,7 @@ def get_youtube_data() -> Dict:
         return {
             "channels": [],
             "dates": [],
+            "total_days": 0,
             "channel_stats": {},
             "error": f"Connection error: {str(e)}"
         }
@@ -112,7 +122,15 @@ def get_twitter_data() -> Dict:
         """)
         users = [row[0] for row in cur.fetchall()]
         
-        # Get processed dates
+        # Get total processing days count
+        cur.execute("""
+            SELECT COUNT(*) as total_days
+            FROM daily_summaries 
+            WHERE summary_date IS NOT NULL
+        """)
+        total_days = cur.fetchone()[0]
+        
+        # Get processed dates for display
         cur.execute("""
             SELECT DISTINCT DATE(summary_date) as process_date
             FROM daily_summaries 
@@ -137,6 +155,7 @@ def get_twitter_data() -> Dict:
         return {
             "users": users,
             "dates": dates,
+            "total_days": total_days,
             "user_stats": user_stats,
             "error": None
         }
@@ -144,6 +163,7 @@ def get_twitter_data() -> Dict:
         return {
             "users": [],
             "dates": [],
+            "total_days": 0,
             "user_stats": {},
             "error": f"Connection error: {str(e)}"
         }
@@ -163,7 +183,15 @@ def get_telegram_data() -> Dict:
         """)
         groups = [row[0] for row in cur.fetchall()]
         
-        # Get processed dates
+        # Get total processing days count
+        cur.execute("""
+            SELECT COUNT(*) as total_days
+            FROM daily_summaries 
+            WHERE summary_date IS NOT NULL
+        """)
+        total_days = cur.fetchone()[0]
+        
+        # Get processed dates for display
         cur.execute("""
             SELECT DISTINCT DATE(summary_date) as process_date
             FROM daily_summaries 
@@ -188,6 +216,7 @@ def get_telegram_data() -> Dict:
         return {
             "groups": groups,
             "dates": dates,
+            "total_days": total_days,
             "group_stats": group_stats,
             "error": None
         }
@@ -195,6 +224,7 @@ def get_telegram_data() -> Dict:
         return {
             "groups": [],
             "dates": [],
+            "total_days": 0,
             "group_stats": {},
             "error": f"Connection error: {str(e)}"
         }
@@ -220,7 +250,7 @@ with col1:
             with col_a:
                 st.metric(label="Channels", value=len(youtube_data["channels"]))
             with col_b:
-                st.metric(label="Days", value=len(youtube_data["dates"]))
+                st.metric(label="Days", value=youtube_data["total_days"])
             
             if not youtube_data["channels"]:
                 st.info("No data yet")
@@ -237,7 +267,7 @@ with col2:
             with col_a:
                 st.metric(label="Users", value=len(twitter_data["users"]))
             with col_b:
-                st.metric(label="Days", value=len(twitter_data["dates"]))
+                st.metric(label="Days", value=twitter_data["total_days"])
             
             if not twitter_data["users"]:
                 st.info("No data yet")
@@ -254,7 +284,7 @@ with col3:
             with col_a:
                 st.metric(label="Groups", value=len(telegram_data["groups"]))
             with col_b:
-                st.metric(label="Days", value=len(telegram_data["dates"]))
+                st.metric(label="Days", value=telegram_data["total_days"])
             
             if not telegram_data["groups"]:
                 st.info("No data yet")
@@ -274,7 +304,7 @@ with st.expander("YouTube Details", expanded=True):
             st.markdown("### Processed Dates")
             if youtube_data["dates"]:
                 st.markdown(f"**Date range:** {youtube_data['dates'][-1]} to {youtube_data['dates'][0]}")
-                st.markdown(f"**Total days:** {len(youtube_data['dates'])}")
+                st.markdown(f"**Total days:** {youtube_data['total_days']}")
                 
                 # Show recent dates
                 st.markdown("**Recent dates:**")
@@ -309,7 +339,7 @@ with st.expander("Twitter Details", expanded=True):
             st.markdown("### Processed Dates")
             if twitter_data["dates"]:
                 st.markdown(f"**Date range:** {twitter_data['dates'][-1]} to {twitter_data['dates'][0]}")
-                st.markdown(f"**Total days:** {len(twitter_data['dates'])}")
+                st.markdown(f"**Total days:** {twitter_data['total_days']}")
                 
                 # Show recent dates
                 st.markdown("**Recent dates:**")
@@ -344,7 +374,7 @@ with st.expander("Telegram Details", expanded=True):
             st.markdown("### Processed Dates")
             if telegram_data["dates"]:
                 st.markdown(f"**Date range:** {telegram_data['dates'][-1]} to {telegram_data['dates'][0]}")
-                st.markdown(f"**Total days:** {len(telegram_data['dates'])}")
+                st.markdown(f"**Total days:** {telegram_data['total_days']}")
                 
                 # Show recent dates
                 st.markdown("**Recent dates:**")
